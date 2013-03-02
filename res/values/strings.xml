@@ -1,8 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <string name="app_name">TestVoiceRecognition</string>
+    <!-- ADT generated -->
+    <string name="app_name">Test Voice Recognition</string>
     <string name="action_settings">Settings</string>
-    <string name="hello_world">Hello world!</string>
+    <!-- App needs -->
+    <string name="voice_start_speaking">Command</string>
+    <string name="voice_start_cancel_speaking">Cancel</string>
+    <string name="voice_start_browser">Say \"Google\" to open the browser.</string>
+
+    <string-array name="voice_langauge_list">
+        <item>English</item>
+        <item>中文(简体)</item>
+        <item>Deutsch</item>
+        <item>Russian(Disposal shall)</item>
+    </string-array>
+    <string-array name="voice_langauge_list_code">
+        <item>en</item>
+        <item>zh</item>
+        <item>de</item>
+        <item>ru</item>
+    </string-array>
+    <string-array name="voice_actions">
+        <item>Ready to speak</item>
+        <item>Processing</item>
+        <item>End</item>
+        <item>Result</item>
+    </string-array>
 
 </resources>
