@@ -3,12 +3,10 @@
 
     <!-- ADT generated -->
     <string name="app_name">Test Voice Recognition</string>
-    <string name="action_settings">Settings</string>
     <!-- App needs -->
-    <string name="voice_start_speaking">Command</string>
-    <string name="voice_start_cancel_speaking">Cancel</string>
-    <string name="voice_start_browser">Say \"Google\" to open the browser.</string>
-
+    <string name="voice_start_browser">Say \"Google\" to open the browser.\nSay \"byebye\" to close.</string> 
+    <string name="voice_start_tray_title">Say \"open the door\" then return to the App.</string> 
+    
     <string-array name="voice_langauge_list">
         <item>English</item>
         <item>中文(简体)</item>
@@ -22,10 +20,8 @@
         <item>ru</item>
     </string-array>
     <string-array name="voice_actions">
-        <item>Ready to speak</item>
-        <item>Processing</item>
-        <item>End</item>
-        <item>Result</item>
+        <item>Command!</item>
+        <item>Processing!</item>
     </string-array>
 
 </resources>

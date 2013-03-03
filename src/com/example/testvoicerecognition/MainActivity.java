@@ -1,231 +1,167 @@
 package com.example.testvoicerecognition;
 
-import static android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS;
-import static android.speech.SpeechRecognizer.ERROR_AUDIO;
-import static android.speech.SpeechRecognizer.ERROR_CLIENT;
-import static android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS;
-import static android.speech.SpeechRecognizer.ERROR_NETWORK;
-import static android.speech.SpeechRecognizer.ERROR_NETWORK_TIMEOUT;
-import static android.speech.SpeechRecognizer.ERROR_NO_MATCH;
-import static android.speech.SpeechRecognizer.ERROR_RECOGNIZER_BUSY;
-import static android.speech.SpeechRecognizer.ERROR_SERVER;
-import static android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT;
-import static android.speech.SpeechRecognizer.RESULTS_RECOGNITION;
-
+import static com.example.testvoicerecognition.VoiceController.ACTION_VOICECONTROLLER_ERROR;
+import static com.example.testvoicerecognition.VoiceController.ACTION_VOICECONTROLLER_PROCESSING;
+import static com.example.testvoicerecognition.VoiceController.ACTION_VOICECONTROLLER_READY;
+import static com.example.testvoicerecognition.VoiceController.ACTION_VOICECONTROLLER_SHOW_RESULT;
+import static com.example.testvoicerecognition.VoiceController.EXTRAS_VOICECONTROLLER_VALUE;
+import static com.example.testvoicerecognition.App.*;
 import java.util.ArrayList;
 import java.util.List;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.Bundle;
-import android.speech.RecognitionListener;
-import android.speech.RecognizerIntent;
-import android.speech.SpeechRecognizer;
+import android.text.TextUtils;
 import android.util.Log;
-import android.view.Menu;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.AdapterView.OnItemSelectedListener;
 import android.widget.ArrayAdapter;
-import android.widget.Button;
 import android.widget.ListView;
 import android.widget.Spinner;
+import android.widget.TextView;
+import android.widget.Toast;
 
-public class MainActivity extends Activity implements RecognitionListener {
-    private static final String  TAG         = "TestVoiceRecognizer";
-    private static final int     MAX_RESULTS = 1;
-    private SpeechRecognizer     mSpeechRecognizer;
-    private Spinner              mLanguages;
-    private Button               mCommand;
-    private List<String>         mResults    = new ArrayList<String>();
-    private ArrayAdapter<String> mAdapter;                              ;
+public class MainActivity extends Activity implements OnItemSelectedListener {
+    private List<String>         mResults = new ArrayList<String>();
+    private ArrayAdapter<String> mAdapter;
 
     @Override
     protected void onCreate( Bundle savedInstanceState ) {
         super.onCreate( savedInstanceState );
         setContentView( R.layout.activity_main );
-        initVoiceRecognizer();
         initViews();
     }
 
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Log.d( TAG, "In Activty onResume" );
+        if( stopService( new Intent( this, TrayService.class ) ) ) {
+            App.getInstance().getVoiceController().destory();
+        }
+        App.getInstance().getVoiceController().create();
+        App.getInstance().getVoiceController().command();
+        bindVoiceEvents();
+    }
+
+    private void bindVoiceEvents() {
+        IntentFilter ift = new IntentFilter();
+        ift.addAction( ACTION_VOICECONTROLLER_READY );
+        ift.addAction( ACTION_VOICECONTROLLER_PROCESSING );
+        ift.addAction( ACTION_VOICECONTROLLER_ERROR );
+        ift.addAction( ACTION_VOICECONTROLLER_SHOW_RESULT );
+        registerReceiver( mReceiver, ift );
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        unbindVoiceEvents();
+    }
+
+    private void unbindVoiceEvents() {
+        unregisterReceiver( mReceiver );
+    }
+
     private void initViews() {
-        mLanguages = (Spinner) findViewById( R.id.spinner_language_list );
-        mCommand = (Button) findViewById( R.id.btn_command );
         ListView resultsList = (ListView) findViewById( R.id.lv_results );
         mAdapter = new ArrayAdapter<String>( this, android.R.layout.simple_list_item_1, mResults );
         resultsList.setAdapter( mAdapter );
+
+        Spinner spinner = (Spinner) findViewById( R.id.spinner_language_list );
+        spinner.setOnItemSelectedListener( this );
+    }
+
+    private String getLangCode( int _i ) {
+        return App.getInstance().getStringInArray( R.array.voice_langauge_list_code, _i );
+    }
+
+    private String getLangName( int _i ) {
+        return App.getInstance().getStringInArray( R.array.voice_langauge_list, _i );
     }
 
     @Override
-    public boolean onCreateOptionsMenu( Menu menu ) {
-        getMenuInflater().inflate( R.menu.main, menu );
-        return true;
+    public void onItemSelected( AdapterView<?> _arg0, View _v, int _index, long _arg3 ) {
+        App.getInstance().setLanguage( getLangCode( _index ) );
+        Toast.makeText( getApplicationContext(), getLangName( _index ) + "-" + App.getInstance().getLanguage(), Toast.LENGTH_SHORT ).show();
     }
 
-    private void initVoiceRecognizer() {
-        mSpeechRecognizer = SpeechRecognizer.createSpeechRecognizer( getApplicationContext() );
-        mSpeechRecognizer.setRecognitionListener( this );
+    @Override
+    public void onNothingSelected( AdapterView<?> _arg0 ) {
+
     }
 
-    public void onCommand( View _v ) {
-        if( mSpeechRecognizer != null ) {
-            mSpeechRecognizer.stopListening();
-            Intent intent = createCommand();
-            mSpeechRecognizer.startListening( intent );
+    private BroadcastReceiver mReceiver = new BroadcastReceiver() {
+                                            public void onReceive( android.content.Context _context, Intent _intent ) {
+                                                handleIntent( _intent );
+                                            };
+                                        };
+
+    private void handleIntent( Intent _intent ) {
+        if( TextUtils.equals( ACTION_VOICECONTROLLER_READY, _intent.getAction() ) ) {
+            TextView console = (TextView) findViewById( R.id.tv_console );
+            console.setText( getAction( 0 ) );
+            findViewById( R.id.pb_searching ).setVisibility( View.INVISIBLE );
+        } else if( TextUtils.equals( ACTION_VOICECONTROLLER_PROCESSING, _intent.getAction() ) ) {
+            findViewById( R.id.pb_searching ).setVisibility( View.VISIBLE );
+            ((TextView) findViewById( R.id.tv_console )).setText( getAction( 1 ) );
+        } else if( TextUtils.equals( ACTION_VOICECONTROLLER_ERROR, _intent.getAction() ) ) {
+            ((TextView) findViewById( R.id.tv_console )).setText( _intent.getStringExtra( EXTRAS_VOICECONTROLLER_VALUE ) );
+            findViewById( R.id.pb_searching ).setVisibility( View.INVISIBLE );
+            App.getInstance().getVoiceController().command();
+        } else if( TextUtils.equals( ACTION_VOICECONTROLLER_SHOW_RESULT, _intent.getAction() ) ) {
+            findViewById( R.id.pb_searching ).setVisibility( View.INVISIBLE );
+            String res = _intent.getStringExtra( EXTRAS_VOICECONTROLLER_VALUE );
+            addToListView( res );
+            handleCommand( res );
+            App.getInstance().getVoiceController().command();
         }
+
+        // else if( TextUtils.equals( ACTION_VOICECONTROLLER_NO_MATCH, _intent.getAction() ) || TextUtils.equals( ACTION_VOICECONTROLLER_NET_ERROR, _intent.getAction() ) || TextUtils.equals( ACTION_VOICECONTROLLER_SERVER_PROBLEM, _intent.getAction() ) ) {
+        // String res = _intent.getStringExtra( EXTRAS_VOICECONTROLLER_VALUE );
+        // TextView console = (TextView) findViewById( R.id.tv_console );
+        // console.setText( res );
+        // View v = findViewById( R.id.pb_searching );
+        // v.setVisibility( View.INVISIBLE );
+        // bindVoiceEvents();
+        // }
     }
 
-    private Intent createCommand() {
-        Intent intent = new Intent( RecognizerIntent.ACTION_RECOGNIZE_SPEECH );
-        intent.putExtra( RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM );
-        intent.putExtra( RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName() );
-        intent.putExtra( RecognizerIntent.EXTRA_MAX_RESULTS, MAX_RESULTS );
-        intent.putExtra( RecognizerIntent.EXTRA_LANGUAGE, getLangCode( mLanguages.getSelectedItemPosition() ) );
-        return intent;
-    }
-
-    public void onCancel( View _v ) {
-        if( mSpeechRecognizer != null ) {
-            mSpeechRecognizer.stopListening();
-        }
-        enableCommand();
-    }
-
-    @Override
-    public void onBeginningOfSpeech() {
-        Log.i( TAG, "onBeginningOfSpeech" );
-        mCommand.setText( getAction( 1 ) );
-    }
-
-    @Override
-    public void onBufferReceived( byte[] _buffer ) {
-
-        Log.i( TAG, "onBufferReceived: " + new String( _buffer ) );
-
-    }
-
-    @Override
-    public void onEndOfSpeech() {
-        Log.i( TAG, "onEndOfSpeech" );
-        mCommand.setText( getAction( 2 ) );
-    }
-
-    @Override
-    public void onError( int _error ) {
-        printError( _error );
-    }
-
-    @Override
-    public void onEvent( int _eventType, Bundle _params ) {
-        Log.i( TAG, "onEvent" );
-    }
-
-    @Override
-    public void onPartialResults( Bundle _partialResults ) {
-        printResult( "onPartialResults", _partialResults.getStringArrayList( EXTRA_PARTIAL_RESULTS ) );
-    }
-
-    @Override
-    public void onReadyForSpeech( Bundle _params ) {
-        Log.i( TAG, "onReadyForSpeech" );
-        disableCommand();
-        mCommand.setText( getAction( 0 ) );
-    }
-
-    @Override
-    public void onResults( Bundle _results ) {
-        printResult( "onResults", _results.getStringArrayList( RESULTS_RECOGNITION ) );
-        mCommand.setText( getAction( 3 ) );
-        enableCommand();
-    }
-
-    @Override
-    public void onRmsChanged( float _rmsdB ) {
-        // Log.i( TAG, "onRmsChanged" );
-    }
-
-    private void enableCommand() {
-        mCommand.setEnabled( true );
-        mCommand.setText( getString( R.string.voice_start_speaking ) );
-    }
-
-    private void disableCommand() {
-        mCommand.setEnabled( false );
-    }
-
-    private static void printError( int _error ) {
-        switch( _error )
-        {
-            case ERROR_AUDIO:
-                Log.i( TAG, "onError: Audio recording error." );
-            break;
-            case ERROR_CLIENT:
-                Log.i( TAG, "onError: Other client side errors." );
-            break;
-            case ERROR_INSUFFICIENT_PERMISSIONS:
-                Log.i( TAG, "onError:   Insufficient permissions." );
-            break;
-            case ERROR_NETWORK:
-                Log.i( TAG, "onError:  Other network related errors." );
-            break;
-            case ERROR_NETWORK_TIMEOUT:
-                Log.i( TAG, "onError:   Network operation timed out." );
-            break;
-            case ERROR_NO_MATCH:
-                Log.i( TAG, "onError:  No recognition result matched." );
-            break;
-            case ERROR_RECOGNIZER_BUSY:
-                Log.i( TAG, "onError:   RecognitionService busy." );
-            break;
-            case ERROR_SERVER:
-                Log.i( TAG, "onError:  Server sends error status." );
-            break;
-            case ERROR_SPEECH_TIMEOUT:
-                Log.i( TAG, "onError:   No speech input." );
-            break;
-            default:
-                Log.i( TAG, "Unknown" );
-
-        }
-    }
-
-    private void printResult( String _title, List<String> _results ) {
-        if( _results != null ) {
-            int sz = _results.size();
-            if( sz >= 1 ) {
-                String word = _results.get( 0 );
-                mResults.add( word );
-                mAdapter.notifyDataSetChanged();
-                if( word.equalsIgnoreCase( "google" ) ) {
-                    openUrl( this, "http://www.google.com" );
-                }
+    private void handleCommand( String res ) {
+        if( !TextUtils.isEmpty( res ) ) {
+            if( res.equalsIgnoreCase( "google" ) ) {
+                openUrl( this, "http://www.google.com" );
+            } else if( res.toLowerCase().contains( "bye bye" ) ) {
+                finish();
             }
         }
     }
 
-    private String getLangCode( int _i ) {
-        return getStringInArray( R.array.voice_langauge_list_code, _i );
+    private void addToListView( String res ) {
+        if( !TextUtils.isEmpty( res ) ) {
+            mResults.add( res );
+            mAdapter.notifyDataSetChanged();
+        }
     }
 
-    private String getAction( int _i ) {
-        return getStringInArray( R.array.voice_actions, _i );
-    }
-
-    private String getStringInArray( int _resID, int _index ) {
-        return (getResources().getStringArray( _resID ))[_index];
-    }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        disposeVoiceRecognizer();
+        Log.d( TAG, "In Activity onDestroy" );
+        App.getInstance().getVoiceController().destory();
+        startService( new Intent( this, TrayService.class ) );
     }
 
-    private void disposeVoiceRecognizer() {
-        if( mSpeechRecognizer != null ) {
-            mSpeechRecognizer.stopListening();
-            mSpeechRecognizer = null;
-        }
+    private String getAction( int _i ) {
+        return App.getInstance().getStringInArray( R.array.voice_actions, _i );
     }
 
     private static void openUrl( Context _context, String _to ) {
@@ -235,4 +171,5 @@ public class MainActivity extends Activity implements RecognitionListener {
             _context.startActivity( i );
         }
     }
+
 }
